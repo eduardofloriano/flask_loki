@@ -56,48 +56,66 @@ def metrics():
 # Endpoint para devolver todos as pessoas cadastradas
 @app.route('/')
 def home():
-    log_message('info', 'This is an INFO message')
-    log_message('debug', 'This is a DEBUG message')
-    log_message('warning', 'This is a WARNING message')
-    log_message('error', 'This is an ERROR message')
-    log_message('critical', 'This is a CRITICAL message')
+    #log_message('info', 'This is an INFO message')
+    #log_message('debug', 'This is a DEBUG message')
+    #log_message('warning', 'This is a WARNING message')
+    #log_message('error', 'This is an ERROR message')
+    #log_message('critical', 'This is a CRITICAL message')
     return "API de pessoas"
 
 @app.route('/pessoas', methods=['GET'])
 def pessoas():
     try:
+        log_message('info', 'Executando endpoint GET de pessoas...')
+        sql = '''SELECT nome, sobrenome, cpf, data_nascimento FROM pessoa'''
+        log_message('info', 'Query: ' + sql)
         with sqlite3.connect('crud.db') as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute('''SELECT nome, sobrenome, cpf, data_nascimento FROM pessoa''')
+            cursor.execute(sql)
             result = cursor.fetchall()
+            log_message('info', 'Query executada com sucesso!')
             return json.dumps([dict(ix) for ix in result]), 200
     except Exception as e:
+        log_message('error', 'Erro ao executar o Endpoint Get de pessoas')
         return jsonify(error=str(e)), 500
 
 @app.route('/pessoa/<cpf>', methods=['GET', 'DELETE'])
 def pessoa_por_cpf(cpf):
     try:
+        log_message('info', 'Executando endpoint de pessoas/cpf...')
+        sqlGET = '''SELECT nome, sobrenome, cpf, data_nascimento FROM pessoa WHERE cpf=?'''
+        sqlDELETE = 'DELETE FROM pessoa WHERE cpf = ?'
         with sqlite3.connect('crud.db') as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             if request.method == 'GET':
-                cursor.execute('''SELECT nome, sobrenome, cpf, data_nascimento FROM pessoa WHERE cpf=?''', [cpf])
+                log_message('info', 'Query: ' + sqlGET)
+                cursor.execute(sqlGET, [cpf])
                 result = cursor.fetchall()
                 if result:
+                    log_message('info', 'Query executada com sucesso!')
                     return json.dumps([dict(ix) for ix in result]), 200
-                return jsonify(error="Pessoa não encontrada"), 404
+                msgErroPessoaGet = "Pessoa não encontrada"
+                log_message('warning', msgErroPessoaGet)
+                return jsonify(error=msgErroPessoaGet), 404
             elif request.method == 'DELETE':
-                cursor.execute('DELETE FROM pessoa WHERE cpf = ?', (cpf,))
+                log_message('info', 'Query: ' + sqlDELETE)
+                cursor.execute(sqlDELETE, (cpf,))
                 if cursor.rowcount == 0:
-                    return jsonify(error="Pessoa não encontrada"), 404
+                    msgErroPessoaDelete = "Pessoa não encontrada"
+                    log_message('warning', msgErroPessoaDelete)
+                    return jsonify(error=msgErroPessoaDelete), 404
                 conn.commit()
+                log_message('info', "Query executada com sucesso!")
                 return jsonify(success="Pessoa deletada com sucesso"), 200
     except Exception as e:
+        log_message('error', 'Erro ao executar o Endpoint /pessoa/cpf')
         return jsonify(error=str(e)), 500
 
 @app.route('/pessoa', methods=['POST'])
 def insere_atualiza_pessoa():
+    log_message('info', 'Executando endpoint de pessoa POST...')
     data = request.get_json(force=True)
     nome = data.get('nome')
     sobrenome = data.get('sobrenome')
@@ -106,18 +124,27 @@ def insere_atualiza_pessoa():
     try:
         with sqlite3.connect('crud.db') as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('SELECT 1 FROM pessoa WHERE cpf = ?', (cpf,))
+            cursor = conn.cursor()            
+            #log_message('info', 'Buscando a Pessoa na base de dados...')
+            cursor.execute('SELECT 1 FROM pessoa WHERE cpf=?', (cpf,))
             exists = cursor.fetchone()
             if exists:
+                log_message('warning', 'Pessoa encontrada com sucesso!')
+                log_message('info', 'Executando atualizacao...')
                 cursor.execute('UPDATE pessoa SET nome=?, sobrenome=?, data_nascimento=? WHERE cpf=?', (nome, sobrenome, datanascimento, cpf))
                 conn.commit()
+                log_message('info', 'Pessoa atualizada com sucesso')
                 return jsonify(success="Pessoa atualizada com sucesso"), 200
+            log_message('warning', 'Pessoa nao encontrada')
+            log_message('info', 'Executando insercao' )
             cursor.execute('INSERT INTO pessoa (nome, sobrenome, cpf, data_nascimento) VALUES (?, ?, ?, ?)', (nome, sobrenome, cpf, datanascimento))
             conn.commit()
+            log_message('info', 'Pessoa inserida com sucesso' )
             return jsonify(success="Pessoa inserida com sucesso"), 201
     except Exception as e:
+        log_message('error', 'Erro ao executar o Endpoint /pessoa')
         return jsonify(error=str(e)), 500
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
